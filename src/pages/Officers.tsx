@@ -1,15 +1,42 @@
 import React, { useState } from 'react';
-import { Search, Filter, Download, Plus, Edit2, Trash2, UserCheck, UserX } from 'lucide-react';
+import { Search, Filter, Download, Plus, Edit2, Trash2, UserCheck, UserX, X, Save, Mail, Phone, Building, Shield, User, Calendar } from 'lucide-react';
 import { StatusBadge } from '../components/UI/StatusBadge';
 import { useData } from '../hooks/useData';
 import { useTheme } from '../contexts/ThemeContext';
 import { Officer } from '../types';
+import toast from 'react-hot-toast';
+
+interface AddOfficerFormData {
+  name: string;
+  mobile: string;
+  telegram_id: string;
+  email: string;
+  department: string;
+  rank: string;
+  badge_number: string;
+  credits_remaining: number;
+  total_credits: number;
+}
 
 export const Officers: React.FC = () => {
-  const { officers, isLoading } = useData();
+  const { officers, setOfficers, isLoading } = useData();
   const { isDark } = useTheme();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formData, setFormData] = useState<AddOfficerFormData>({
+    name: '',
+    mobile: '',
+    telegram_id: '',
+    email: '',
+    department: '',
+    rank: '',
+    badge_number: '',
+    credits_remaining: 50,
+    total_credits: 50
+  });
 
   const filteredOfficers = officers.filter(officer => {
     const matchesSearch = officer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -20,6 +47,176 @@ export const Officers: React.FC = () => {
     
     return matchesSearch && matchesStatus;
   });
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: name === 'credits_remaining' || name === 'total_credits' ? parseInt(value) || 0 : value
+    }));
+  };
+
+  const handleAddOfficer = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+
+    try {
+      // Validate required fields
+      if (!formData.name.trim() || !formData.mobile.trim()) {
+        toast.error('Name and mobile number are required');
+        return;
+      }
+
+      // Check for duplicate mobile
+      if (officers.some(officer => officer.mobile === formData.mobile)) {
+        toast.error('An officer with this mobile number already exists');
+        return;
+      }
+
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 1500));
+
+      const newOfficer: Officer = {
+        id: Date.now().toString(),
+        name: formData.name,
+        mobile: formData.mobile,
+        telegram_id: formData.telegram_id || `@${formData.name.toLowerCase().replace(/\s+/g, '')}`,
+        status: 'Active',
+        registered_on: new Date().toISOString().split('T')[0],
+        last_active: 'Never',
+        credits_remaining: formData.credits_remaining,
+        total_credits: formData.total_credits,
+        total_queries: 0,
+        avatar: `https://images.pexels.com/photos/${Math.floor(Math.random() * 1000000)}/pexels-photo-${Math.floor(Math.random() * 1000000)}.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&dpr=2`
+      };
+
+      setOfficers(prev => [...prev, newOfficer]);
+      toast.success('Officer added successfully!');
+      setShowAddModal(false);
+      setFormData({
+        name: '',
+        mobile: '',
+        telegram_id: '',
+        email: '',
+        department: '',
+        rank: '',
+        badge_number: '',
+        credits_remaining: 50,
+        total_credits: 50
+      });
+    } catch (error) {
+      toast.error('Failed to add officer');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleExport = (format: 'csv' | 'json' | 'pdf') => {
+    try {
+      const dataToExport = filteredOfficers.map(officer => ({
+        Name: officer.name,
+        Mobile: officer.mobile,
+        'Telegram ID': officer.telegram_id,
+        Status: officer.status,
+        'Registered On': officer.registered_on,
+        'Last Active': officer.last_active,
+        'Credits Remaining': officer.credits_remaining,
+        'Total Credits': officer.total_credits,
+        'Total Queries': officer.total_queries
+      }));
+
+      if (format === 'csv') {
+        const headers = Object.keys(dataToExport[0]);
+        const csvContent = [
+          headers.join(','),
+          ...dataToExport.map(row => 
+            headers.map(header => `"${row[header as keyof typeof row]}"`).join(',')
+          )
+        ].join('\n');
+
+        const blob = new Blob([csvContent], { type: 'text/csv' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `officers_export_${new Date().toISOString().split('T')[0]}.csv`;
+        a.click();
+        window.URL.revokeObjectURL(url);
+      } else if (format === 'json') {
+        const jsonContent = JSON.stringify(dataToExport, null, 2);
+        const blob = new Blob([jsonContent], { type: 'application/json' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `officers_export_${new Date().toISOString().split('T')[0]}.json`;
+        a.click();
+        window.URL.revokeObjectURL(url);
+      } else if (format === 'pdf') {
+        // For PDF, we'll create a simple HTML table and print it
+        const printWindow = window.open('', '_blank');
+        if (printWindow) {
+          const htmlContent = `
+            <!DOCTYPE html>
+            <html>
+            <head>
+              <title>Officers Export</title>
+              <style>
+                body { font-family: Arial, sans-serif; margin: 20px; }
+                table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+                th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+                th { background-color: #f2f2f2; font-weight: bold; }
+                .header { text-align: center; margin-bottom: 20px; }
+                .export-date { text-align: right; font-size: 12px; color: #666; }
+              </style>
+            </head>
+            <body>
+              <div class="header">
+                <h1>PickMe Intelligence - Officers Report</h1>
+                <div class="export-date">Generated on: ${new Date().toLocaleString()}</div>
+              </div>
+              <table>
+                <thead>
+                  <tr>
+                    ${Object.keys(dataToExport[0]).map(header => `<th>${header}</th>`).join('')}
+                  </tr>
+                </thead>
+                <tbody>
+                  ${dataToExport.map(row => 
+                    `<tr>${Object.values(row).map(value => `<td>${value}</td>`).join('')}</tr>`
+                  ).join('')}
+                </tbody>
+              </table>
+            </body>
+            </html>
+          `;
+          printWindow.document.write(htmlContent);
+          printWindow.document.close();
+          printWindow.print();
+        }
+      }
+
+      toast.success(`Officers exported as ${format.toUpperCase()}`);
+      setShowExportModal(false);
+    } catch (error) {
+      toast.error('Failed to export data');
+    }
+  };
+
+  const handleStatusToggle = (officerId: string, currentStatus: string) => {
+    const newStatus = currentStatus === 'Active' ? 'Suspended' : 'Active';
+    setOfficers(prev => prev.map(officer => 
+      officer.id === officerId 
+        ? { ...officer, status: newStatus as 'Active' | 'Suspended' }
+        : officer
+    ));
+    toast.success(`Officer ${newStatus.toLowerCase()}`);
+  };
+
+  const handleDeleteOfficer = (officerId: string, officerName: string) => {
+    if (window.confirm(`Are you sure you want to delete ${officerName}? This action cannot be undone.`)) {
+      setOfficers(prev => prev.filter(officer => officer.id !== officerId));
+      toast.success('Officer deleted successfully');
+    }
+  };
 
   if (isLoading) {
     return (
@@ -41,7 +238,10 @@ export const Officers: React.FC = () => {
             Manage law enforcement personnel and their access
           </p>
         </div>
-        <button className="bg-cyber-gradient text-white px-4 py-2 rounded-lg hover:shadow-cyber transition-all duration-200 flex items-center space-x-2">
+        <button 
+          onClick={() => setShowAddModal(true)}
+          className="bg-cyber-gradient text-white px-4 py-2 rounded-lg hover:shadow-cyber transition-all duration-200 flex items-center space-x-2"
+        >
           <Plus className="w-4 h-4" />
           <span>Add Officer</span>
         </button>
@@ -155,7 +355,10 @@ export const Officers: React.FC = () => {
               <Filter className="w-4 h-4" />
               <span>Filter</span>
             </button>
-            <button className="px-3 py-2 bg-electric-blue/20 text-electric-blue rounded-lg hover:bg-electric-blue/30 transition-colors flex items-center space-x-2">
+            <button 
+              onClick={() => setShowExportModal(true)}
+              className="px-3 py-2 bg-electric-blue/20 text-electric-blue rounded-lg hover:bg-electric-blue/30 transition-colors flex items-center space-x-2"
+            >
               <Download className="w-4 h-4" />
               <span>Export</span>
             </button>
@@ -239,26 +442,26 @@ export const Officers: React.FC = () => {
                 }`}>
                   <Edit2 className="w-4 h-4" />
                 </button>
-                <button className={`p-2 transition-colors ${
-                  isDark ? 'text-gray-400 hover:text-red-400' : 'text-gray-600 hover:text-red-400'
-                }`}>
+                <button 
+                  onClick={() => handleDeleteOfficer(officer.id, officer.name)}
+                  className={`p-2 transition-colors ${
+                    isDark ? 'text-gray-400 hover:text-red-400' : 'text-gray-600 hover:text-red-400'
+                  }`}
+                >
                   <Trash2 className="w-4 h-4" />
                 </button>
               </div>
               <div className="flex space-x-2">
-                {officer.status === 'Active' ? (
-                  <button className={`p-2 transition-colors ${
-                    isDark ? 'text-gray-400 hover:text-yellow-400' : 'text-gray-600 hover:text-yellow-400'
-                  }`}>
-                    <UserX className="w-4 h-4" />
-                  </button>
-                ) : (
-                  <button className={`p-2 transition-colors ${
-                    isDark ? 'text-gray-400 hover:text-green-400' : 'text-gray-600 hover:text-green-400'
-                  }`}>
-                    <UserCheck className="w-4 h-4" />
-                  </button>
-                )}
+                <button 
+                  onClick={() => handleStatusToggle(officer.id, officer.status)}
+                  className={`p-2 transition-colors ${
+                    officer.status === 'Active'
+                      ? isDark ? 'text-gray-400 hover:text-yellow-400' : 'text-gray-600 hover:text-yellow-400'
+                      : isDark ? 'text-gray-400 hover:text-green-400' : 'text-gray-600 hover:text-green-400'
+                  }`}
+                >
+                  {officer.status === 'Active' ? <UserX className="w-4 h-4" /> : <UserCheck className="w-4 h-4" />}
+                </button>
               </div>
             </div>
           </div>
@@ -281,6 +484,370 @@ export const Officers: React.FC = () => {
           <p className={isDark ? 'text-gray-400' : 'text-gray-600'}>
             Try adjusting your search criteria or filters.
           </p>
+        </div>
+      )}
+
+      {/* Add Officer Modal */}
+      {showAddModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className={`max-w-2xl w-full rounded-lg p-6 max-h-[90vh] overflow-y-auto ${
+            isDark ? 'bg-muted-graphite border border-cyber-teal/20' : 'bg-white border border-gray-200'
+          }`}>
+            <div className="flex items-center justify-between mb-6">
+              <h3 className={`text-xl font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                Add New Officer
+              </h3>
+              <button
+                onClick={() => setShowAddModal(false)}
+                className={`p-2 transition-colors ${
+                  isDark ? 'text-gray-400 hover:text-white' : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddOfficer} className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className={`block text-sm font-medium mb-2 ${
+                    isDark ? 'text-gray-300' : 'text-gray-700'
+                  }`}>
+                    Full Name *
+                  </label>
+                  <div className="relative">
+                    <User className={`absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 ${
+                      isDark ? 'text-gray-400' : 'text-gray-500'
+                    }`} />
+                    <input
+                      type="text"
+                      name="name"
+                      required
+                      value={formData.name}
+                      onChange={handleInputChange}
+                      placeholder="Inspector John Doe"
+                      className={`w-full pl-10 pr-4 py-3 border border-cyber-teal/30 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyber-teal ${
+                        isDark 
+                          ? 'bg-crisp-black text-white placeholder-gray-500' 
+                          : 'bg-white text-gray-900 placeholder-gray-400'
+                      }`}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className={`block text-sm font-medium mb-2 ${
+                    isDark ? 'text-gray-300' : 'text-gray-700'
+                  }`}>
+                    Mobile Number *
+                  </label>
+                  <div className="relative">
+                    <Phone className={`absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 ${
+                      isDark ? 'text-gray-400' : 'text-gray-500'
+                    }`} />
+                    <input
+                      type="tel"
+                      name="mobile"
+                      required
+                      value={formData.mobile}
+                      onChange={handleInputChange}
+                      placeholder="+91 9791103607"
+                      className={`w-full pl-10 pr-4 py-3 border border-cyber-teal/30 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyber-teal ${
+                        isDark 
+                          ? 'bg-crisp-black text-white placeholder-gray-500' 
+                          : 'bg-white text-gray-900 placeholder-gray-400'
+                      }`}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className={`block text-sm font-medium mb-2 ${
+                    isDark ? 'text-gray-300' : 'text-gray-700'
+                  }`}>
+                    Telegram ID
+                  </label>
+                  <input
+                    type="text"
+                    name="telegram_id"
+                    value={formData.telegram_id}
+                    onChange={handleInputChange}
+                    placeholder="@johndoe"
+                    className={`w-full px-4 py-3 border border-cyber-teal/30 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyber-teal ${
+                      isDark 
+                        ? 'bg-crisp-black text-white placeholder-gray-500' 
+                        : 'bg-white text-gray-900 placeholder-gray-400'
+                    }`}
+                  />
+                </div>
+
+                <div>
+                  <label className={`block text-sm font-medium mb-2 ${
+                    isDark ? 'text-gray-300' : 'text-gray-700'
+                  }`}>
+                    Email Address
+                  </label>
+                  <div className="relative">
+                    <Mail className={`absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 ${
+                      isDark ? 'text-gray-400' : 'text-gray-500'
+                    }`} />
+                    <input
+                      type="email"
+                      name="email"
+                      value={formData.email}
+                      onChange={handleInputChange}
+                      placeholder="john.doe@police.gov.in"
+                      className={`w-full pl-10 pr-4 py-3 border border-cyber-teal/30 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyber-teal ${
+                        isDark 
+                          ? 'bg-crisp-black text-white placeholder-gray-500' 
+                          : 'bg-white text-gray-900 placeholder-gray-400'
+                      }`}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className={`block text-sm font-medium mb-2 ${
+                    isDark ? 'text-gray-300' : 'text-gray-700'
+                  }`}>
+                    Department
+                  </label>
+                  <select
+                    name="department"
+                    value={formData.department}
+                    onChange={handleInputChange}
+                    className={`w-full px-4 py-3 border border-cyber-teal/30 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyber-teal ${
+                      isDark 
+                        ? 'bg-crisp-black text-white' 
+                        : 'bg-white text-gray-900'
+                    }`}
+                  >
+                    <option value="">Select Department</option>
+                    <option value="Cyber Crime">Cyber Crime</option>
+                    <option value="Intelligence">Intelligence</option>
+                    <option value="Crime Branch">Crime Branch</option>
+                    <option value="Traffic">Traffic</option>
+                    <option value="Special Branch">Special Branch</option>
+                    <option value="Anti-Terrorism">Anti-Terrorism</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className={`block text-sm font-medium mb-2 ${
+                    isDark ? 'text-gray-300' : 'text-gray-700'
+                  }`}>
+                    Rank
+                  </label>
+                  <select
+                    name="rank"
+                    value={formData.rank}
+                    onChange={handleInputChange}
+                    className={`w-full px-4 py-3 border border-cyber-teal/30 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyber-teal ${
+                      isDark 
+                        ? 'bg-crisp-black text-white' 
+                        : 'bg-white text-gray-900'
+                    }`}
+                  >
+                    <option value="">Select Rank</option>
+                    <option value="Constable">Constable</option>
+                    <option value="Head Constable">Head Constable</option>
+                    <option value="Assistant Sub Inspector">Assistant Sub Inspector</option>
+                    <option value="Sub Inspector">Sub Inspector</option>
+                    <option value="Inspector">Inspector</option>
+                    <option value="Deputy Superintendent">Deputy Superintendent</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className={`block text-sm font-medium mb-2 ${
+                    isDark ? 'text-gray-300' : 'text-gray-700'
+                  }`}>
+                    Badge Number
+                  </label>
+                  <div className="relative">
+                    <Shield className={`absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 ${
+                      isDark ? 'text-gray-400' : 'text-gray-500'
+                    }`} />
+                    <input
+                      type="text"
+                      name="badge_number"
+                      value={formData.badge_number}
+                      onChange={handleInputChange}
+                      placeholder="CC001"
+                      className={`w-full pl-10 pr-4 py-3 border border-cyber-teal/30 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyber-teal ${
+                        isDark 
+                          ? 'bg-crisp-black text-white placeholder-gray-500' 
+                          : 'bg-white text-gray-900 placeholder-gray-400'
+                      }`}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className={`block text-sm font-medium mb-2 ${
+                    isDark ? 'text-gray-300' : 'text-gray-700'
+                  }`}>
+                    Credits Remaining
+                  </label>
+                  <input
+                    type="number"
+                    name="credits_remaining"
+                    min="0"
+                    value={formData.credits_remaining}
+                    onChange={handleInputChange}
+                    className={`w-full px-4 py-3 border border-cyber-teal/30 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyber-teal ${
+                      isDark 
+                        ? 'bg-crisp-black text-white' 
+                        : 'bg-white text-gray-900'
+                    }`}
+                  />
+                </div>
+
+                <div>
+                  <label className={`block text-sm font-medium mb-2 ${
+                    isDark ? 'text-gray-300' : 'text-gray-700'
+                  }`}>
+                    Total Credits
+                  </label>
+                  <input
+                    type="number"
+                    name="total_credits"
+                    min="0"
+                    value={formData.total_credits}
+                    onChange={handleInputChange}
+                    className={`w-full px-4 py-3 border border-cyber-teal/30 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyber-teal ${
+                      isDark 
+                        ? 'bg-crisp-black text-white' 
+                        : 'bg-white text-gray-900'
+                    }`}
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end space-x-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setShowAddModal(false)}
+                  className={`px-6 py-3 rounded-lg transition-colors ${
+                    isDark ? 'text-gray-400 hover:text-white' : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="px-6 py-3 bg-cyber-gradient text-white rounded-lg hover:shadow-cyber transition-all duration-200 disabled:opacity-50 flex items-center space-x-2"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <span>Adding...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-4 h-4" />
+                      <span>Add Officer</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Export Modal */}
+      {showExportModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className={`max-w-md w-full rounded-lg p-6 ${
+            isDark ? 'bg-muted-graphite border border-cyber-teal/20' : 'bg-white border border-gray-200'
+          }`}>
+            <div className="flex items-center justify-between mb-6">
+              <h3 className={`text-xl font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                Export Officers Data
+              </h3>
+              <button
+                onClick={() => setShowExportModal(false)}
+                className={`p-2 transition-colors ${
+                  isDark ? 'text-gray-400 hover:text-white' : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <p className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                Choose the format to export {filteredOfficers.length} officer records:
+              </p>
+
+              <div className="space-y-3">
+                <button
+                  onClick={() => handleExport('csv')}
+                  className={`w-full p-4 rounded-lg border transition-all duration-200 text-left ${
+                    isDark 
+                      ? 'bg-crisp-black border-cyber-teal/20 hover:border-cyber-teal/40 text-white' 
+                      : 'bg-gray-50 border-gray-200 hover:border-cyber-teal/40 text-gray-900'
+                  }`}
+                >
+                  <div className="flex items-center space-x-3">
+                    <Download className="w-5 h-5 text-cyber-teal" />
+                    <div>
+                      <p className="font-medium">CSV Format</p>
+                      <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                        Comma-separated values for spreadsheet applications
+                      </p>
+                    </div>
+                  </div>
+                </button>
+
+                <button
+                  onClick={() => handleExport('json')}
+                  className={`w-full p-4 rounded-lg border transition-all duration-200 text-left ${
+                    isDark 
+                      ? 'bg-crisp-black border-cyber-teal/20 hover:border-cyber-teal/40 text-white' 
+                      : 'bg-gray-50 border-gray-200 hover:border-cyber-teal/40 text-gray-900'
+                  }`}
+                >
+                  <div className="flex items-center space-x-3">
+                    <Download className="w-5 h-5 text-electric-blue" />
+                    <div>
+                      <p className="font-medium">JSON Format</p>
+                      <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                        Structured data format for developers
+                      </p>
+                    </div>
+                  </div>
+                </button>
+
+                <button
+                  onClick={() => handleExport('pdf')}
+                  className={`w-full p-4 rounded-lg border transition-all duration-200 text-left ${
+                    isDark 
+                      ? 'bg-crisp-black border-cyber-teal/20 hover:border-cyber-teal/40 text-white' 
+                      : 'bg-gray-50 border-gray-200 hover:border-cyber-teal/40 text-gray-900'
+                  }`}
+                >
+                  <div className="flex items-center space-x-3">
+                    <Download className="w-5 h-5 text-neon-magenta" />
+                    <div>
+                      <p className="font-medium">PDF Report</p>
+                      <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                        Printable report format
+                      </p>
+                    </div>
+                  </div>
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>
