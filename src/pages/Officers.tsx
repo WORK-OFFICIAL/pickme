@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { Search, Filter, Download, Plus, Edit2, Trash2, UserCheck, UserX, X, Save, Mail, Phone, Building, Shield, User, Calendar } from 'lucide-react';
 import { StatusBadge } from '../components/UI/StatusBadge';
-import { useData } from '../hooks/useData';
+import { useOfficers } from '../hooks/useOfficers';
 import { useTheme } from '../contexts/ThemeContext';
-import { Officer } from '../types';
+import { useAuth } from '../contexts/AuthContext';
+import type { Officer } from '../lib/supabase';
 import toast from 'react-hot-toast';
 
 interface AddOfficerFormData {
@@ -19,8 +20,9 @@ interface AddOfficerFormData {
 }
 
 export const Officers: React.FC = () => {
-  const { officers, setOfficers, isLoading } = useData();
+  const { officers, isLoading, addOfficer, updateOfficerStatus, deleteOfficer } = useOfficers();
   const { isDark } = useTheme();
+  const { isAuthenticated } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [showAddModal, setShowAddModal] = useState(false);
@@ -41,7 +43,7 @@ export const Officers: React.FC = () => {
   const filteredOfficers = officers.filter(officer => {
     const matchesSearch = officer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          officer.mobile.includes(searchTerm) ||
-                         officer.telegram_id.toLowerCase().includes(searchTerm.toLowerCase());
+                         (officer.telegram_id && officer.telegram_id.toLowerCase().includes(searchTerm.toLowerCase()));
     
     const matchesStatus = statusFilter === 'all' || officer.status === statusFilter;
     
@@ -73,25 +75,33 @@ export const Officers: React.FC = () => {
         return;
       }
 
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1500));
-
-      const newOfficer: Officer = {
-        id: Date.now().toString(),
+      const newOfficerData: Omit<Officer, 'id' | 'created_at' | 'updated_at'> = {
         name: formData.name,
         mobile: formData.mobile,
         telegram_id: formData.telegram_id || `@${formData.name.toLowerCase().replace(/\s+/g, '')}`,
+        email: formData.email || undefined,
+        department: formData.department || undefined,
+        rank: formData.rank || undefined,
+        badge_number: formData.badge_number || undefined,
         status: 'Active',
         registered_on: new Date().toISOString().split('T')[0],
-        last_active: 'Never',
+        last_active: undefined,
         credits_remaining: formData.credits_remaining,
         total_credits: formData.total_credits,
         total_queries: 0,
-        avatar: `https://images.pexels.com/photos/${Math.floor(Math.random() * 1000000)}/pexels-photo-${Math.floor(Math.random() * 1000000)}.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&dpr=2`
+        pro_access_enabled: true,
+        rate_limit_per_hour: 100,
+        avatar_url: undefined
       };
 
-      setOfficers(prev => [...prev, newOfficer]);
-      toast.success('Officer added successfully!');
+      await addOfficer(newOfficerData);
+      
+      toast.success(
+        isAuthenticated 
+          ? 'Officer added successfully to database!' 
+          : 'Officer added to demo data!'
+      );
+      
       setShowAddModal(false);
       setFormData({
         name: '',
@@ -105,7 +115,8 @@ export const Officers: React.FC = () => {
         total_credits: 50
       });
     } catch (error) {
-      toast.error('Failed to add officer');
+      console.error('Error adding officer:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to add officer');
     } finally {
       setIsSubmitting(false);
     }
@@ -116,10 +127,14 @@ export const Officers: React.FC = () => {
       const dataToExport = filteredOfficers.map(officer => ({
         Name: officer.name,
         Mobile: officer.mobile,
-        'Telegram ID': officer.telegram_id,
+        'Telegram ID': officer.telegram_id || '',
+        Email: officer.email || '',
+        Department: officer.department || '',
+        Rank: officer.rank || '',
+        'Badge Number': officer.badge_number || '',
         Status: officer.status,
         'Registered On': officer.registered_on,
-        'Last Active': officer.last_active,
+        'Last Active': officer.last_active || 'Never',
         'Credits Remaining': officer.credits_remaining,
         'Total Credits': officer.total_credits,
         'Total Queries': officer.total_queries
@@ -201,20 +216,32 @@ export const Officers: React.FC = () => {
     }
   };
 
-  const handleStatusToggle = (officerId: string, currentStatus: string) => {
-    const newStatus = currentStatus === 'Active' ? 'Suspended' : 'Active';
-    setOfficers(prev => prev.map(officer => 
-      officer.id === officerId 
-        ? { ...officer, status: newStatus as 'Active' | 'Suspended' }
-        : officer
-    ));
-    toast.success(`Officer ${newStatus.toLowerCase()}`);
+  const handleStatusToggle = async (officerId: string, currentStatus: string) => {
+    try {
+      const newStatus = currentStatus === 'Active' ? 'Suspended' : 'Active';
+      await updateOfficerStatus(officerId, newStatus);
+      toast.success(
+        isAuthenticated 
+          ? `Officer ${newStatus.toLowerCase()} in database` 
+          : `Officer ${newStatus.toLowerCase()} in demo data`
+      );
+    } catch (error) {
+      toast.error('Failed to update officer status');
+    }
   };
 
-  const handleDeleteOfficer = (officerId: string, officerName: string) => {
+  const handleDeleteOfficer = async (officerId: string, officerName: string) => {
     if (window.confirm(`Are you sure you want to delete ${officerName}? This action cannot be undone.`)) {
-      setOfficers(prev => prev.filter(officer => officer.id !== officerId));
-      toast.success('Officer deleted successfully');
+      try {
+        await deleteOfficer(officerId);
+        toast.success(
+          isAuthenticated 
+            ? 'Officer deleted from database successfully' 
+            : 'Officer removed from demo data'
+        );
+      } catch (error) {
+        toast.error('Failed to delete officer');
+      }
     }
   };
 
@@ -236,6 +263,11 @@ export const Officers: React.FC = () => {
           </h1>
           <p className={`mt-1 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
             Manage law enforcement personnel and their access
+            {!isAuthenticated && (
+              <span className="ml-2 text-xs px-2 py-1 bg-yellow-500/20 text-yellow-400 rounded">
+                Demo Mode
+              </span>
+            )}
           </p>
         </div>
         <button 
@@ -374,17 +406,15 @@ export const Officers: React.FC = () => {
           }`}>
             <div className="flex items-start justify-between mb-4">
               <div className="flex items-center space-x-3">
-                <img
-                  src={officer.avatar}
-                  alt={officer.name}
-                  className="w-12 h-12 rounded-full border-2 border-cyber-teal/30"
-                />
+                <div className="w-12 h-12 bg-cyber-gradient rounded-full flex items-center justify-center">
+                  <User className="w-6 h-6 text-white" />
+                </div>
                 <div>
                   <h3 className={`font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
                     {officer.name}
                   </h3>
                   <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                    {officer.telegram_id}
+                    {officer.telegram_id || '@' + officer.name.toLowerCase().replace(/\s+/g, '')}
                   </p>
                 </div>
               </div>
@@ -402,7 +432,7 @@ export const Officers: React.FC = () => {
               </div>
               <div className="flex justify-between text-sm">
                 <span className={isDark ? 'text-gray-400' : 'text-gray-600'}>Last Active:</span>
-                <span className={isDark ? 'text-white' : 'text-gray-900'}>{officer.last_active}</span>
+                <span className={isDark ? 'text-white' : 'text-gray-900'}>{officer.last_active || 'Never'}</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className={isDark ? 'text-gray-400' : 'text-gray-600'}>Credits:</span>
@@ -496,6 +526,11 @@ export const Officers: React.FC = () => {
             <div className="flex items-center justify-between mb-6">
               <h3 className={`text-xl font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
                 Add New Officer
+                {!isAuthenticated && (
+                  <span className="ml-2 text-xs px-2 py-1 bg-yellow-500/20 text-yellow-400 rounded">
+                    Demo Mode
+                  </span>
+                )}
               </h3>
               <button
                 onClick={() => setShowAddModal(false)}
@@ -729,6 +764,17 @@ export const Officers: React.FC = () => {
                   />
                 </div>
               </div>
+
+              {!isAuthenticated && (
+                <div className={`p-4 rounded-lg border ${
+                  isDark ? 'bg-yellow-500/10 border-yellow-500/30' : 'bg-yellow-50 border-yellow-200'
+                }`}>
+                  <p className={`text-sm ${isDark ? 'text-yellow-300' : 'text-yellow-800'}`}>
+                    <strong>Demo Mode:</strong> This officer will be added to demo data only. 
+                    To save to the database, please log in with valid credentials.
+                  </p>
+                </div>
+              )}
 
               <div className="flex justify-end space-x-3 pt-4">
                 <button
