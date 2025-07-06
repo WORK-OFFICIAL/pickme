@@ -3,7 +3,7 @@ import {
   Search, CreditCard, History, User, LogOut, Zap, Phone, Mail, Globe, ArrowLeft, 
   Shield, Car, Smartphone, MapPin, Link as LinkIcon, Bell, Settings, 
   Plus, Eye, Download, Filter, Calendar, Clock, CheckCircle, XCircle,
-  Wifi, Database, CreditCard as CreditCardIcon, AlertTriangle
+  Wifi, Database, CreditCard as CreditCardIcon, AlertTriangle, Moon, Sun
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useTheme } from '../contexts/ThemeContext';
@@ -30,7 +30,7 @@ interface TrackLink {
 }
 
 export const OfficerDashboard: React.FC = () => {
-  const { isDark } = useTheme();
+  const { isDark, toggleTheme } = useTheme();
   const { officer, logout } = useOfficerAuth();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -238,6 +238,18 @@ export const OfficerDashboard: React.FC = () => {
               </div>
             </div>
             <div className="flex items-center space-x-3">
+              {/* Theme Toggle */}
+              <button
+                onClick={toggleTheme}
+                className={`p-2 transition-colors ${
+                  isDark ? 'text-gray-400 hover:text-cyber-teal' : 'text-gray-600 hover:text-cyber-teal'
+                }`}
+                title={`Switch to ${isDark ? 'light' : 'dark'} theme`}
+              >
+                {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+              </button>
+              
+              {/* Notifications */}
               <button className={`relative p-2 transition-colors ${
                 isDark ? 'text-gray-400 hover:text-cyber-teal' : 'text-gray-600 hover:text-cyber-teal'
               }`}>
@@ -248,6 +260,15 @@ export const OfficerDashboard: React.FC = () => {
                   </span>
                 )}
               </button>
+              
+              {/* Settings */}
+              <button className={`p-2 transition-colors ${
+                isDark ? 'text-gray-400 hover:text-cyber-teal' : 'text-gray-600 hover:text-cyber-teal'
+              }`}>
+                <Settings className="w-5 h-5" />
+              </button>
+              
+              {/* Logout */}
               <button 
                 onClick={handleLogout}
                 className={`p-2 transition-colors ${isDark ? 'text-gray-400 hover:text-red-400' : 'text-gray-600 hover:text-red-400'}`}
@@ -762,6 +783,20 @@ export const OfficerDashboard: React.FC = () => {
                   </span>
                   <label className="relative inline-flex items-center cursor-pointer">
                     <input type="checkbox" defaultChecked className="sr-only peer" />
+                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-cyber-teal/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-cyber-teal"></div>
+                  </label>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                    Dark Theme
+                  </span>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input 
+                      type="checkbox" 
+                      checked={isDark}
+                      onChange={toggleTheme}
+                      className="sr-only peer" 
+                    />
                     <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-cyber-teal/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-cyber-teal"></div>
                   </label>
                 </div>
