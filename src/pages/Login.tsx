@@ -7,8 +7,8 @@ import toast from 'react-hot-toast';
 
 export const Login: React.FC = () => {
   const { isDark } = useTheme();
-  const [email, setEmail] = useState('admin@pickme.intel');
-  const [password, setPassword] = useState('admin123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { login } = useAuth();
@@ -21,9 +21,19 @@ export const Login: React.FC = () => {
       await login(email, password);
       toast.success('Login successful!');
     } catch (error) {
-      toast.error('Invalid credentials');
+      toast.error(error instanceof Error ? error.message : 'Invalid credentials');
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const fillDemoCredentials = (type: 'demo' | 'verified') => {
+    if (type === 'demo') {
+      setEmail('admin@pickme.intel');
+      setPassword('admin123');
+    } else {
+      setEmail('rahman.nisha@gmail.com');
+      setPassword('daGvfrtada@Q@#13!!');
     }
   };
 
@@ -167,21 +177,62 @@ export const Login: React.FC = () => {
           </div>
 
           {/* Demo Credentials */}
-          <div className={`mt-6 p-4 rounded-lg border ${
-            isDark 
-              ? 'bg-crisp-black/50 border-cyber-teal/20' 
-              : 'bg-gray-50 border-gray-200'
-          }`}>
-            <p className={`text-xs mb-2 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-              Demo Credentials:
-            </p>
-            <div className="space-y-1 text-xs">
-              <p className={isDark ? 'text-gray-300' : 'text-gray-700'}>
-                Email: <span className="text-cyber-teal">admin@pickme.intel</span>
-              </p>
-              <p className={isDark ? 'text-gray-300' : 'text-gray-700'}>
-                Password: <span className="text-cyber-teal">admin123</span>
-              </p>
+          <div className="mt-6 space-y-3">
+            <div className={`p-4 rounded-lg border ${
+              isDark 
+                ? 'bg-crisp-black/50 border-cyber-teal/20' 
+                : 'bg-gray-50 border-gray-200'
+            }`}>
+              <div className="flex items-center justify-between mb-2">
+                <p className={`text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                  Verified Admin Account:
+                </p>
+                <button
+                  type="button"
+                  onClick={() => fillDemoCredentials('verified')}
+                  className="text-xs text-cyber-teal hover:text-electric-blue transition-colors"
+                >
+                  Use These
+                </button>
+              </div>
+              <div className="space-y-1 text-xs">
+                <p className={isDark ? 'text-gray-300' : 'text-gray-700'}>
+                  Email: <span className="text-cyber-teal font-mono">rahman.nisha@gmail.com</span>
+                </p>
+                <p className={isDark ? 'text-gray-300' : 'text-gray-700'}>
+                  Name: <span className="text-cyber-teal">Raman Abdullah</span>
+                </p>
+                <p className={isDark ? 'text-gray-300' : 'text-gray-700'}>
+                  Role: <span className="text-cyber-teal">Administrator</span>
+                </p>
+              </div>
+            </div>
+
+            <div className={`p-4 rounded-lg border ${
+              isDark 
+                ? 'bg-crisp-black/50 border-yellow-500/20' 
+                : 'bg-yellow-50 border-yellow-200'
+            }`}>
+              <div className="flex items-center justify-between mb-2">
+                <p className={`text-xs font-medium ${isDark ? 'text-yellow-400' : 'text-yellow-600'}`}>
+                  Demo Account:
+                </p>
+                <button
+                  type="button"
+                  onClick={() => fillDemoCredentials('demo')}
+                  className="text-xs text-cyber-teal hover:text-electric-blue transition-colors"
+                >
+                  Use These
+                </button>
+              </div>
+              <div className="space-y-1 text-xs">
+                <p className={isDark ? 'text-gray-300' : 'text-gray-700'}>
+                  Email: <span className="text-cyber-teal font-mono">admin@pickme.intel</span>
+                </p>
+                <p className={isDark ? 'text-gray-300' : 'text-gray-700'}>
+                  Password: <span className="text-cyber-teal font-mono">admin123</span>
+                </p>
+              </div>
             </div>
           </div>
         </div>

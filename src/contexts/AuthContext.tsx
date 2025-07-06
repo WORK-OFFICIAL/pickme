@@ -78,7 +78,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setIsLoading(true);
     
     try {
-      // First try to authenticate with database
+      // Try to authenticate with database
       const { data: adminUser, error } = await supabase
         .from('admin_users')
         .select('id, email, password_hash, name, role, is_active')
